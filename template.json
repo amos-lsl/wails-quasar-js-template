@@ -1,0 +1,6 @@
+{
+  "name": "wails-template-quasar-js",
+  "shortname": "quasar-js",
+  "author": "Lee77 <amos-lsl@outlook.com>",
+  "description": "A template using quasar + vite + js"
+}
