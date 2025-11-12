@@ -1,0 +1,253 @@
+// 使用示例 - 展示如何使用优化后的API封装
+
+import api from './api.js'
+
+// ================== 基础使用 ==================
+
+// 1. 简单的GET请求
+async function getUserInfo() {
+  const [data, error] = await api.get('/users/123')
+  
+  if (error) {
+    console.error('获取用户信息失败:', error.message)
+    return
+  }
+  
+  console.log('用户信息:', data)
+  return data
+}
+
+// 2. 带参数的GET请求
+async function searchUsers(params) {
+  const [data, error] = await api.get('/users', { params })
+  
+  if (error) {
+    console.error('搜索用户失败:', error.message)
+    return
+  }
+  
+  return data
+}
+
+// 3. POST请求
+async function createUser(userData) {
+  const [data, error] = await api.post('/users', userData)
+  
+  if (error) {
+    console.error('创建用户失败:', error.message)
+    return
+  }
+  
+  console.log('用户创建成功:', data)
+  return data
+}
+
+// ================== 高级使用 ==================
+
+// 4. 带loading的请求
+async function fetchWithLoading() {
+  const [data, error] = await api.get('/data', {}, { showLoading: true })
+  
+  if (error) {
+    console.error('请求失败:', error.message)
+    return
+  }
+  
+  return data
+}
+
+// 5. 文件上传
+async function uploadAvatar(file) {
+  const [data, error] = await api.upload('/upload/avatar', file, (progress) => {
+    console.log(`上传进度: ${progress}%`)
+  })
+  
+  if (error) {
+    console.error('头像上传失败:', error.message)
+    return
+  }
+  
+  console.log('头像上传成功:', data)
+  return data
+}
+
+// 6. 文件下载
+async function downloadReport() {
+  const [success, error] = await api.download('/reports/123', 'report.pdf')
+  
+  if (error) {
+    console.error('报告下载失败:', error.message)
+    return
+  }
+  
+  console.log('报告下载成功')
+}
+
+// 7. 批量请求
+async function fetchUserData() {
+  const requests = [
+    { url: '/users/1' },
+    { url: '/users/2' },
+    { url: '/posts/user/1' },
+  ]
+  
+  const results = await api.batch(requests)
+  
+  results.forEach((result, index) => {
+    const [data, error] = result
+    if (error) {
+      console.error(`请求${index + 1}失败:`, error.message)
+    } else {
+      console.log(`请求${index + 1}成功:`, data)
+    }
+  })
+}
+
+// ================== Vue组件中使用 ==================
+
+import { ref } from 'vue'
+
+export default {
+  setup() {
+    const users = ref([])
+    const loading = ref(false)
+    const error = ref(null)
+
+    const fetchUsers = async () => {
+      loading.value = true
+      error.value = null
+      
+      const [data, err] = await api.get('/users')
+      
+      if (err) {
+        error.value = err.message
+      } else {
+        users.value = data
+      }
+      
+      loading.value = false
+    }
+
+    const createUser = async (userData) => {
+      const [data, err] = await api.post('/users', userData)
+      
+      if (err) {
+        console.error('创建用户失败:', err.message)
+      } else {
+        users.value.push(data)
+      }
+    }
+
+    return {
+      users,
+      loading,
+      error,
+      fetchUsers,
+      createUser
+    }
+  }
+}
+
+// ================== 认证管理 ==================
+
+// 设置token
+function login(credentials) {
+  // 登录成功后设置token
+  api.setAuthToken(userToken)
+  
+  // 后续所有请求都会自动包含认证头
+  loadUserData()
+}
+
+// 清除token
+function logout() {
+  api.clearAuth()
+  window.location.href = '/login'
+}
+
+// ================== 错误处理最佳实践 ==================
+
+// 1. 全局错误处理
+function handleApiError(error, context = '') {
+  console.error(`API错误${context}:`, error)
+  
+  // 显示用户友好的错误信息
+  const message = getErrorMessage(error)
+  showToast(message, 'error')
+  
+  // 记录错误（发送到监控服务）
+  logError(error, context)
+}
+
+function getErrorMessage(error) {
+  if (error.message.includes('401')) {
+    return '登录已过期，请重新登录'
+  } else if (error.message.includes('403')) {
+    return '没有权限访问该功能'
+  } else if (error.message.includes('404')) {
+    return '请求的资源不存在'
+  } else if (error.message.includes('网络')) {
+    return '网络连接失败，请检查网络设置'
+  } else {
+    return error.message || '请求失败'
+  }
+}
+
+// 2. 重试机制
+async function fetchWithRetry(url, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    const [data, error] = await api.get(url)
+    
+    if (!error) {
+      return data
+    }
+    
+    if (i === maxRetries - 1) {
+      throw error // 最后一次重试失败
+    }
+    
+    // 等待后重试
+    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+  }
+}
+
+// ================== 缓存策略 ==================
+
+// 简单的内存缓存
+const cache = new Map()
+const CACHE_DURATION = 5 * 60 * 1000 // 5分钟
+
+function getCachedData(url, fetchFn) {
+  const cached = cache.get(url)
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return Promise.resolve(cached.data)
+  }
+  
+  return fetchFn().then(data => {
+    cache.set(url, { data, timestamp: Date.now() })
+    return data
+  })
+}
+
+// 使用缓存的请求
+async function getCachedUsers() {
+  return getCachedData('/users', () => {
+    const [data, error] = await api.get('/users')
+    if (error) throw error
+    return data
+  })
+}
+
+export {
+  getUserInfo,
+  searchUsers,
+  createUser,
+  fetchWithLoading,
+  uploadAvatar,
+  downloadReport,
+  fetchUserData,
+  handleApiError,
+  fetchWithRetry,
+  getCachedUsers
+}
