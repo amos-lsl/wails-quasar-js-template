@@ -1,3 +1,5 @@
+export const isWailsDev = window.runtime != undefined
+
 export const isDev =  process.env.NODE_ENV === "development";
 
 export const timeout = isDev ? 10000 : 20000
